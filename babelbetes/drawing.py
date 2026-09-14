@@ -6,10 +6,17 @@ from datetime import timedelta
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
+import pandas as pd
 from babelbetes import pandas_helper
 from babelbetes.pandas_helper import get_hour_of_day
     
 colors = {'Bolus': 'red', 'Basal': 'blue', 'CGM': 'darkgray'}
+
+
+def default_figure(width=8,height=4):
+    f = plt.figure(figsize=(width,height))
+    ax = f.gca()
+    return f, ax
 
 def create_axis():
     """Creates a new figure and axis for plotting.
@@ -88,13 +95,14 @@ def drawBasal(ax, datetimes, rates, color=colors['Basal'], **kwargs):
         color (str, optional): Color for the basal rates plot. Defaults to colors['Basal'].
         **kwargs (dict): Additional keyword arguments to customize the plot.
     """
-    defaults = {'color': color, 'fill': True, 'alpha': 0.5, 'edgecolor': 'blue'}
+    defaults = {'color': color, 'fill': True, 'alpha': 0.5, 'edgecolor': 'blue', 'label': 'basal'}
     defaults.update(kwargs)
     ax.stairs(rates[:-1], datetimes, **defaults)
-    
-    # add stems for the rates without marker
+
+    # add stems for the rates without marker (no label, the bars carry it)
     defaults = {'markerfmt': ' ', 'basefmt':' '}
     defaults.update(kwargs)
+    defaults.pop('label', None)
     ax.stem(datetimes, rates, **defaults)
 
 def drawBoluses(ax, datetimes, boluses, **kwargs):
@@ -198,6 +206,28 @@ def drawMovingAverage(ax, df, datetime_col, value_col, aggregator='mean', **kwar
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):02d}:00'))
     ax.legend()
 
+
+def drawMidnightLines(ax, datetimes, color='gray', linestyle='--', alpha=0.5, **kwargs):
+    """Draws vertical lines at every midnight spanned by the given datetimes.
+
+    One line is drawn per day, from the midnight starting the first datetime's
+    day to the midnight starting the last datetime's day, inclusive of both.
+
+    Args:
+        ax (matplotlib.axes.Axes): The axes on which to draw the lines.
+        datetimes (array-like of datetime): The datetimes whose spanned days' midnights should be drawn.
+        color (str, optional): Line color. Defaults to 'gray'.
+        linestyle (str, optional): Line style. Defaults to '--'.
+        alpha (float, optional): Line transparency. Defaults to 0.5.
+        **kwargs (dict): Additional keyword arguments passed to ax.axvline().
+    """
+    datetimes = pd.to_datetime(pd.Series(datetimes))
+    midnights = pd.date_range(datetimes.min().normalize(), datetimes.max().normalize(), freq='D')
+
+    defaults = {'color': color, 'linestyle': linestyle, 'alpha': alpha}
+    defaults.update(kwargs)
+    for midnight in midnights:
+        ax.axvline(midnight, **defaults)
 
 def draw_presence_matrix(ax, df, x_col, y_col, offset=0, **kwargs):
     """

@@ -150,7 +150,7 @@ def calculate_daily_basal_dose_old(df):
 
 def calculate_daily_bolus_dose(df):
     """
-    Calculate the daily bolus dose for each patient.
+    Calculate the daily bolus dose for each day.
     Parameters:
         df (pandas.DataFrame): The input DataFrame containing the following columns:
             - datetime (datetime): The date and time of the bolus dose.
