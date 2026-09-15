@@ -217,31 +217,39 @@ partial under-delivery rather than restating a hard metric.
 
 ---
 
-## 5. Why the soft numbers do not need to be right
+## 5. Outlier identification
 
-This is the question that has been blocking the section, and it dissolves once the two kinds of
-boundary are kept apart.
+For sample inspection we focus on outliers. Outliers are defined relative to the study population,
+because expected values depend on the study's device, protocol and population — frequent basal rate
+change intervals are normal in one study and alarming in another. Sampling each study separately also
+keeps the inspection from collapsing onto the single most extreme study.
 
-**Hard boundaries are derived, not chosen.** They come from the sensor range, the pump envelope, and
-arithmetic — a negative dose, a rate no pump can deliver, a CGM value the sensor cannot report,
-insulin that is zero on a day the patient was clearly alive and wearing a sensor. There is no
-acceptance rate to argue about because the tolerance is zero. Every hit is either corrected in the
-parser or formally approved with a written mechanism.
+Hard metrics need no selection: a reference value exists, and any violation enters the hard set. Soft
+metrics come in two kinds:
 
-**Soft boundaries are sampling instruments.** Their job is to rank patients by how much they deserve
-a look, and to make the ranking reproducible and disclosed. A soft boundary is set so the tail it
-selects is a workable number of cases — a few dozen per rule — and it is reported together with the
-resulting *N*, so a reader can see the sampling intensity rather than guess at it. Nothing passes or
-fails on a soft boundary.
+| Metrics | Reference | An outlier is |
+|---|---|---|
+| Span efficiency, core completeness, duplicate count, zero-dose days | a constant — 1 or 0 | a large distance from it |
+| TDD μ\*, TDD σ\*, min and max multiple, basal share, gap sizes, CGM rate of change | the study population | a large deviation from its center |
 
-That is the answer to the draft's open "5 % acceptance rate?" question: **there is no global
-acceptance rate, because soft checks are not accept/reject gates.** What we report instead is: for
-each rule, the boundary, how many patient-days and patients it selected, how many were inspected, and
-what they turned out to be.
+Population parameters are estimated **robustly**, from the median and MAD. Classical estimates are
+pulled toward the extremes they are meant to find, so correcting those patients shifts the center and
+declares a new set of ordinary patients extreme — a cascade that never ends.
 
-This also protects against the failure mode the draft and DATA-CARE both warn about — over-cleaning.
-Nothing is ever dropped because a soft boundary fired. High variability is the signal we want to
-preserve.
+Two separate decisions then follow. An **outlier** is a surprising finding, for example more than
+three robust standard deviations from the population center; the size of that set is reported, not
+capped. **Inspection** covers *n* of them, which reflects available time rather than the data. Both
+are reported together: *41 outliers, 5 inspected*.
+
+A **case** is a patient, not a metric hit — one cause typically trips several metrics at once, and
+they are inspected together. Counting metric hits would give studies × metrics × *n* cases; counting
+patients gives studies × *n*. Per study we therefore take *n* patients, plus — for any metric whose
+outliers are not already represented among those *n* — its most extreme patient, so that no metric
+goes unexamined. Where a metric carries a date (TDD max and min multiple), inspection starts at that
+day.
+
+> **TBD** — the deviation that defines an outlier (start: 3 robust SD), *n* (start: 5 per study), and
+> whether the *n* are the most extreme or a random draw from the set.
 
 ---
 
