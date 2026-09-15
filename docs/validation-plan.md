@@ -303,3 +303,34 @@ rather than implied.
 | 5 · Report | figures, tables and the write-up |
 
 Phases 3–5 repeat until the stop criterion is met.
+
+### Stopping
+
+The screen stops when two conditions hold.
+
+**No open hard cases.** Every violation has been corrected, or explicitly approved with a documented
+mechanism. This is absolute: a hard case is an impossibility, and there is nothing to weigh.
+
+**Soft cases at our discretion.** There is no threshold here, because there is always a most extreme
+patient. What is weighed is how many of the newly inspected cases turned out to require a fix. If
+that share is low enough to accept, the screen stops; if it is not, the corrections are made and the
+screen is repeated. The number is reported either way, so the judgement is visible rather than
+implied.
+
+A case that has already been inspected and decided is not inspected again in a later round — it is
+re-checked: a corrected case must be gone, an accepted case must be unchanged. A fix that moves a
+case previously accepted as correct is a warning sign.
+
+---
+
+## 9. Open items
+
+Marked **TBD** in the text and collected here.
+
+| Item | Section |
+|---|---|
+| The deviation that defines an outlier — start: 3 robust SD | §5 |
+| Number of cases inspected per study — start: 5 | §5 |
+| Whether the inspected cases are the most extreme or a random draw | §5 |
+| Device and physiologic limits per study: CGM reporting range, bolus and basal maxima, carb maximum | §4 |
+| Whether source-faithful artifacts such as priming doses count as errors — depends on downstream use, to be decided per use case | §6 |
