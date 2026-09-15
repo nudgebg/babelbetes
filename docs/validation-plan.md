@@ -52,42 +52,34 @@ figures.
 
 ---
 
-## 2. What the screen is actually for
+## 2. Scope and verification target
 
-The claim at the end is deliberately narrow, and it is the honest one:
+Babelbetes brings datasets from several high-quality clinical trials into a common schema. The source
+data is already of high quality and has been used in regulatory submissions; what has to be
+established is that the **reconstruction of the original event series is accurate**. That is not
+trivial: formats and sources vary, much of the encoding is device-specific, and the interpretation
+leaves considerable room for human error.
 
-> Every physiologically impossible value and every structurally suspicious patient in the Babelbetes
-> output was found by a documented, reproducible screen, inspected, and given a cause. The defects we
-> found were fixed; the rest are real — real physiology or real artifacts of the source records — and
-> are retained on purpose.
+Formal validation as described in V&V 40 for CM&S is specific to a context of use, and risk
+management depends on the context of use in mind. Babelbetes provides a standardized view of the data
+through transformation and will be used across many different contexts of use. Formal validation and
+risk management without a specific context of use therefore do not apply.
 
-That last clause is not a hedge, it is the point. AIDIF simulates reality, and reality contains
-imperfect device data. A patient whose insulin requirement doubles mid-study turned out to be
-pregnant. Implausibly large pen doses turned out to be priming. A controller that meets those in
-silico is being tested honestly. The screen's job is therefore to **separate defect from phenomenon**,
-not to clean the data.
+We instead define the verification target as **reconstructing reality as closely as possible**,
+established in four steps:
 
----
+1. **Exhaustive investigation** — per-dataset notebooks documenting every decision and finding.
+2. **Code verification** — formal schema validation and unit tests for the transformation logic.
+3. **Face validation** — plotting the data and inspecting it for expected trends and distributions.
+4. **Systematic screening of the output** — this document.
 
-## 3. The scope line, and how to defend it
+> Physiologically impossible value and structurally suspicious data in the Babelbetes output 
+> were systematically searched and inspected and if deemed to be erroneous either fixed or excluded.
 
-Every metric in this screen is computed from the Babelbetes output *as it is defined*: irregular
-event streams, local time, no resampling. Nothing derived by a model enters.
-
-**IOB, COB, rate-of-change against IOB, matrix profiles and the geometric-mean/SD envelopes belong to
-AIDIF, not here.** They require a 5-minute grid, an insulin PK model, and parameter choices that are
-themselves AIDIF artifacts. Validating Babelbetes with them would validate the AIDIF model on
-Babelbetes data — the wrong direction, and it would break the interim-sub-V&V roll-up, which requires
-that each transform be verifiable on its own terms before the next consumes it.
-
-The one thing we lose is the IOB~EGV plausibility view. It is replaced by cheaper evidence for the
-same property: the circadian CGM/insulin profile (local time is right), TDD reconciliation against
-reported values (insulin magnitude is right), and basal/bolus split (insulin composition is right).
-Where the AIDIF chunking V&V does compute IOB, that check lands there.
 
 ---
 
-## 4. The engine
+## 3. The engine
 
 Five stages, one direction, no loops. Stages 1–2 are automated and rerun in under a minute; stage 3
 is where the human time goes.
@@ -107,51 +99,115 @@ snapshot/diff system plugs back in.
 
 ---
 
-## 5. The check catalog
+## 4. What can go wrong, and how we detect it
 
-Twenty checks in five families. Sixteen are one line each against the daily table; four are the
-external reality anchors. **HARD** means a physiologic or device impossibility — tolerance zero,
-every hit is fixed or formally approved. **SOFT** means suspicious but possible — the hit does not
-fail anything, it enters the challenge set.
+The metric set is motivated by the failure modes encountered while building the parsers. Those
+specific defects are documented and largely fixed; the metrics are not there to re-find them, but to
+detect the **effects that similar problems would produce**. Most of the complexity sits in insulin and
+in time reconstruction, which is why most metrics are targeted at these.
 
-### T1 — Check catalog
+All metrics are computed directly from the standardized event streams. Every metric is computed for
+all patients in all studies. The screen then inspects the **extremes**; how outliers are identified
+and how many of them are selected for inspection is defined in the next section.
 
-| ID | Check | Boundary | Type | Grain |
+| Observable effect | Example failure mode |
+|---|---|
+| **Too much insulin** | temporal duplicates · priming doses · MDI injections · temp-basal percentages not applied or applied twice · basal reported during AutoMode micro-bolus periods · missing suspends · extended boluses reported twice |
+| **Too little insulin** | basal stream never imported or stopping mid-record · data gaps · a single rate carried across a long interval · terminal records of undefined duration |
+| **Incomplete or misaligned coverage** | streams imported from different sources or periods · data beyond the study duration imported for individual data types · carb records split across files |
+| **Signal shifts, unexpected temporal patterns** | local time reconstructed from incomplete timezone information · streams spliced from several sources · sampling cadence departing from the device interval |
+
+### Two challenge sets
+
+Findings are collected into two sets with different pass criteria. The distinction is not one of
+severity, but of whether a reference value exists.
+
+The **hard set** collects observations that are physiologically or technically impossible, or very
+nearly so: values outside the device reporting range, magic numbers used to encode sensor failures,
+doses no pump can deliver, exact duplicates, a day with no insulin at all. Nothing here needs
+calibration — a reference value exists and the observation violates it. The pass criterion is that
+the set is empty: every entry is either corrected, or explicitly approved with a documented
+mechanism.
+
+The **soft set** collects outliers in trends and distributions — patients whose totals, variability,
+coverage or composition sit far from the rest of their study. These may be extreme but genuine
+therapy, or they may point to a data error; the metric itself cannot tell. There is no reference
+value, only a distribution, which differs by study, device and population, so detection is relative
+to the patient's own study. The pass criterion is not emptiness — there is always a most extreme
+patient — but that every entry has been inspected and explained.
+
+### A · Schema conformance
+
+Babelbetes validates the output schema as part of the pipeline. These metrics check once more, on the
+written output, whether anything was missed. Point level, all hard; the expected value of every one
+of them is zero.
+
+| Metric | Definition | Unit | Examples |
+|---|---|---|---|
+| CGM bounds | share of samples below the sensor minimum, above the sensor maximum, and not integer-valued | % of samples (3 values) | magic numbers encoding sensor failures — e.g. 39 and 401 where the reporting range is 40–400 |
+| Bolus bounds | share of doses below 0 and above the device maximum | % of boluses (2 values) | doses beyond what the pump can deliver — e.g. a 46 U bolus on a pump capped at 30 U |
+| Basal rate bounds | share of events below 0 and above the device maximum | % of events (2 values) | unit and encoding errors — e.g. a rate of 11 160 U/h |
+| Carb bounds | share of entries below 0 and above the physiologic maximum | % of entries (2 values) | implausible entries — e.g. a negative amount, or a single 3 000 g meal |
+| Overlapping boluses | share of boluses whose delivery interval extends past the start of the next | % of boluses | the same extended bolus written twice, once at start and once at completion |
+
+### B · Data coverage
+
+Defined over the **mandatory streams** — CGM, bolus and basal. Carbs are reported as coverage only,
+since they exist in two datasets. For a stream *s*, let *first(s)* and *last(s)* be the first and last
+day carrying data.
+
+**Union span\*** — the full extent of the patient's record:
+
+```
+union_span = max( last(cgm), last(bolus), last(basal) )
+           - min( first(cgm), first(bolus), first(basal) ) + 1
+```
+
+**Core span\*** — the window bounded by all three streams, clamped at zero:
+
+```
+core_span  = max( 0,  min( last(cgm),  last(bolus),  last(basal)  )
+                    - max( first(cgm), first(bolus), first(basal) ) + 1 )
+```
+
+| Metric | Definition | Unit | Examples |
+|---|---|---|---|
+| Span efficiency | core_span\* ÷ union_span\* | ratio, 0–1 | streams that do not start and stop together — e.g. pump history imported for months before the CGM record begins |
+| Core completeness | days inside core_span\* carrying all mandatory streams ÷ core_span\* | ratio, 0–1 | holes inside the covered window — e.g. a week in which only CGM was recorded |
+| Core coverage per stream | days inside core_span\* carrying that stream ÷ core_span\* | ratio, 0–1 (3 values, 4 where carbs exist) | a stream that is thin throughout — e.g. carb records split across two files with a gap between them |
+| Gap size | geometric mean and geometric SD of intervals between consecutive events of a stream, inside core_span\* | hours; SD dimensionless (2 values per stream) | long intervals between events of one type — e.g. a basal rate carried unchanged for three weeks |
+
+**Span efficiency and core completeness are independent by construction**: the first describes the
+edges of the record, the second its interior. Read together they separate two different problems. A
+patient at 0.98 / 0.55 has clean edges and a shredded interior — an import problem. One at
+0.40 / 1.00 has intact data with an overhanging import, and is a candidate for clipping rather than
+correction.
+
+### C · Plausibility
+
+Daily totals are the substrate; every metric reports one value per patient.
+
+| Metric | Definition | Unit | Type | Examples |
 |---|---|---|---|---|
-| **A · Conformance** — does the output obey its own schema and the device envelope? ||||
-| CF-1 | CGM value inside the sensor range, integer-valued | [40, 400] mg/dL | HARD | point |
-| CF-2 | No nulls in `cgm`, `bolus`, `basal_rate`; timestamps present and sorted | 0 | HARD | point |
-| CF-3 | Bolus dose within the pump envelope | [0, 30] U | HARD | point |
-| CF-4 | Basal rate within the pump envelope | [0, 35] U/h | HARD | point |
-| CF-5 | Extended-bolus duration valid | 0 or (0, 8] h | HARD | point |
-| CF-6 | Announced carbs per entry (Loop, ReplaceBG) | [0, 300] g | HARD | point |
-| **B · Completeness** — is anything silently missing, and would we know? ||||
-| CP-1 | CGM uptime per day (5-min bins occupied) | < 70 % | SOFT | day |
-| CP-2 | Largest intraday CGM gap | > 6 h | SOFT | day |
-| CP-3 | **CGM present, insulin entirely absent** — the undetectable-gap case | any day | HARD | day |
-| CP-4 | A patient is missing a whole stream (CGM, bolus or basal) | any patient | HARD | patient |
-| CP-5 | Stream alignment: basal/bolus start & end vs. CGM | abs(Δ) > 7 d | SOFT | patient |
-| CP-6 | Longest run of consecutive days with no data of any type | > 7 d | SOFT | patient |
-| **C · Plausibility, aggregate** — is the reconstructed insulin the right size and shape? ||||
-| PL-1 | **TDD = 0 on a day that has CGM data** | any day | HARD | day |
-| PL-2 | Daily TDD outside the physiologic band | < 5 or > 150 U | SOFT | day |
-| PL-3 | Basal share of TDD | outside [0.2, 0.8] | SOFT | patient |
-| PL-4 | A day's basal dose carried by a single segment longer than a day — terminal-record / gap ambiguity | > 24 h | SOFT | day |
-| PL-5 | Daily CGM mean / CV outside the plausible envelope | mean ∉ [80,300]; CV ∉ [0.10, 0.50] | SOFT | day |
-| PL-6 | Temporal duplicate boluses — equal dose ≥ 0.5 U within 5 min | rate vs. study norm | SOFT | patient |
-| **D · Plausibility, temporal** — does time behave? ||||
-| TM-1 | Circadian profile present with correct phase (meal peaks, overnight AID drop) — evidence local time reconstructed correctly | visual, per study | FIGURE | study |
-| TM-2 | **Therapy regime shift**: step in the 14-day rolling median TDD | > 50 % | SOFT | patient |
-| TM-3 | CGM rate of change between consecutive samples | > 6 mg/dL/min | SOFT | day |
-| **E · Reality anchors** — the only external references we have ||||
-| OM-1 | Patient count and study duration vs. published | exact / near | HARD | study |
-| OM-2 | Mean TDD vs. reported, where reported | ± 5 % (Loop, ReplaceBG); ± 10 % other | HARD | study |
-| OM-3 | TIR / TBR / TAR vs. published, where reported | ± 5 pp | SOFT | study |
-| OM-4 | Determinism: rerun the pipeline, compare the daily table | identical | HARD | store |
+| Zero-dose days | days with TDD < 1 U | count, and % of core days | hard | basal never imported, or a stream stopping mid-record |
+| TDD μ\* | robust geometric mean of daily totals | U/day | soft | a record shifted in level — e.g. a standard basal rate profile counted on top of Loop micro-bolusing, leaving a patient with an extremely high total for their study; or temp-basal percentages never applied |
+| TDD σ\* | robust geometric SD of daily totals | ratio, ≥ 1 | soft | widespread instability — e.g. a therapy change mid-study, or systematically incomplete days |
+| TDD max multiple | highest daily total ÷ μ\*, with the date | ratio, ≥ 1 | soft | a single extreme day — e.g. a priming dose recorded as a 40 U bolus |
+| TDD min multiple | μ\* ÷ lowest daily total over days ≥ 1 U, with the date | ratio, ≥ 1 | soft | partial under-delivery — e.g. a day on which only half the basal was imported |
+| Basal share | basal dose ÷ TDD | ratio, 0–1 | soft | basal rates missing or incorrectly transformed — e.g. incorrectly derived from MDI injections, or double-counted during AutoMode. A share near zero is correct for MDI patients |
+| Duplicate count | near-identical doses ≥ 0.5 U within one minute | count, and % of boluses | soft | the same bolus recorded twice, with or without a rounding difference |
+| CGM rate of change | largest absolute change per minute between consecutive samples | mg/dL per minute | soft | discontinuities where segments with different time offsets were spliced — e.g. glucose jumping 120 mg/dL between two five-minute samples |
+
+μ\* and σ\* are estimated robustly, from the median and MAD of the log daily totals. This keeps them
+insensitive to single extreme days, so that σ\* responds to *widespread* deviation while the max and
+min multiples respond to *single* events — the two therefore carry different information.
+
+The min multiple is computed only over days that pass the zero-dose check, so that it measures
+partial under-delivery rather than restating a hard metric.
 
 ---
 
-## 6. Why the soft numbers do not need to be right
+## 5. Why the soft numbers do not need to be right
 
 This is the question that has been blocking the section, and it dissolves once the two kinds of
 boundary are kept apart.
@@ -179,7 +235,7 @@ preserve.
 
 ---
 
-## 7. What happens to a finding
+## 6. What happens to a finding
 
 Every case that enters the challenge set leaves it with one of four labels. The distribution of
 labels is the result of the whole exercise — and the reason the exercise is worth doing is that only
@@ -203,7 +259,7 @@ coverage, not by the case count.
 
 ---
 
-## 8. First pass — what the screen found
+## 7. First pass — what the screen found
 
 The engine and checks A–C ran over all nine datasets: **510,672 patient-days**, 2,572 patients. These
 are raw hits, not adjudicated cases — the point is that the screen is discriminating, and that its
@@ -252,7 +308,7 @@ boundary at day 95 are all visible without a table.
 
 ---
 
-## 9. What goes in the paper
+## 8. What goes in the paper
 
 ### T2 — Figure and table set for the V&V section
 
@@ -263,13 +319,13 @@ boundary at day 95 are all visible without a table.
 | F3 | TDD panel: per-study distribution, basal/bolus split, reported-TDD anchor | Insulin reconstruction is the right magnitude and composition | open |
 | F4 | Circadian profile: mean CGM and insulin by time of day, per study | Local-time reconstruction is correct; physiology behaves as expected | open |
 | F5 | Two or three adjudicated cases as annotated patient-day traces | Flags were actually inspected, and defect was separated from phenomenon | open |
-| T1 | Check catalog (§5 of this document) | Every check has a boundary, a type and an action | DONE |
+| T1 | Metric set (§4 of this document) | Every check has a boundary, a type and an action | DONE |
 | T2 | Results per check per study: boundary, N selected, N inspected, disposition | OHDSI DQD-style reporting, extended with hard/soft | open |
 | T3 | Disposition log | The audit trail under the closing claim | open |
 
 ---
 
-## 10. Plan
+## 9. Plan
 
 | Day | Focus | Items |
 |---|---|---|
