@@ -1,11 +1,11 @@
-# Babelbetes Output Screening
+# Babelbetes Output Verification
 
-*Validation plan for the Babelbetes standardized output — method note and first-pass evidence.*
-*Draft for review, 5 September 2026.*
+*Verification plan for the Babelbetes standardized output.*
+*Draft for review, September 2026.*
 
-One automated screen over the standardized Parquet output, one decision boundary per check, one
-adjudication log. This is the method we are going to run — and the first-pass evidence from running
-it over all nine datasets.
+Exhaustive metric computation over all patients in all studies, followed by targeted inspection of
+the extremes. This document defines the metrics, how outliers are identified, and how findings are
+classified and resolved.
 
 ---
 
@@ -65,13 +65,23 @@ management depends on the context of use in mind. Babelbetes provides a standard
 through transformation and will be used across many different contexts of use. Formal validation and
 risk management without a specific context of use therefore do not apply.
 
+What this document describes is consequently **verification, not validation**. Validation asks
+whether the output is fit for an intended use; with no context of use there is none to ask about. The
+question that remains — does the output state what actually happened? — is a verification question.
+
+*A note on vocabulary.* Kahn et al. use the two terms on a different axis, where verification means
+expectations derived internally and validation means comparison against an external gold standard. On
+that axis this work is also predominantly verification; the one exception is outcome matching against
+published study results.
+
 We instead define the verification target as **reconstructing reality as closely as possible**,
 established in four steps:
 
 1. **Exhaustive investigation** — per-dataset notebooks documenting every decision and finding.
 2. **Code verification** — formal schema validation and unit tests for the transformation logic.
 3. **Face validation** — plotting the data and inspecting it for expected trends and distributions.
-4. **Systematic screening of the output** — this document.
+4. **Output screening and sample inspection** — exhaustive metric computation over all patients,
+   followed by targeted inspection of the extremes. This document.
 
 > Physiologically impossible value and structurally suspicious data in the Babelbetes output 
 > were systematically searched and inspected and if deemed to be erroneous either fixed or excluded.
@@ -99,7 +109,7 @@ snapshot/diff system plugs back in.
 
 ---
 
-## 4. What can go wrong, and how we detect it
+## 4. Metrics
 
 The metric set is motivated by the failure modes encountered while building the parsers. Those
 specific defects are documented and largely fixed; the metrics are not there to re-find them, but to
