@@ -26,10 +26,17 @@ What this document describes is consequently **verification, not validation**. V
 whether the output is fit for an intended use; with no context of use there is none to ask about. The
 question that remains — does the output state what actually happened? — is a verification question.
 
-*A note on vocabulary.* Kahn et al. use the two terms on a different axis, where verification means
-expectations derived internally and validation means comparison against an external gold standard. On
-that axis this work is also predominantly verification; the one exception is outcome matching against
-published study results.
+Established data-quality frameworks define validation as comparison against an external gold
+standard — a reference assumed to be more accurate than the data at hand. Babelbetes starts from that
+reference: the datasets it transforms are regulatory-grade clinical trial data, the best source
+available in this field. What has to be established is therefore not whether the data is good, but
+whether the reconstruction of it is faithful. Validating a model against measured data is well
+established practice; the inverse is not, and the step is rarely described.
+
+What is available, and what this plan uses, is verification: checking the reconstruction against the
+source, checking consistency against device specifications, and assessing plausibility with respect
+to physiology, population and study design. Some external anchors from published study results can
+also be used — device-reported total daily doses, study durations, patient counts.
 
 We instead define the verification target as **reconstructing reality as closely as possible**,
 established in four steps:
