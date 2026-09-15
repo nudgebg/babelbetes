@@ -66,7 +66,28 @@ nothing else.
 
 ---
 
-## 3. Metrics
+## 3. Face validation
+
+Before any metric was defined, the data was looked at. While building each parser, distributions were
+plotted and compared — glucose and dose distributions, daily patterns, circadian rhythms — within a
+study and across studies, and checked against what is clinically expected.
+
+The question at this stage is whether anything looks wrong, and it is answered by eye. Circadian
+rhythms are checked for the expected patterns arising from daily glucose and insulin demands; their
+absence points to an unresolved time-shift or timezone problem. Where studies differ drastically, the
+difference has to be traced and explained by the device, the protocol or the population. A pediatric
+study with much lower daily totals is expected; a study whose basal distribution sits far from the
+others is not, and is investigated until the difference is understood or the reconstruction is
+corrected.
+
+Face validation is qualitative and open-ended, which is both its strength and its limit: it catches
+things no metric was written for, but it does not scale to every patient and leaves no record of what
+was covered. Output screening is its systematic continuation — the same comparisons, computed for
+every patient, with an explicit rule for what counts as surprising.
+
+---
+
+## 4. Metrics
 
 The metric set is motivated by the failure modes encountered while building the parsers. Those
 specific defects are documented and largely fixed; the metrics are not there to re-find them, but to
@@ -174,7 +195,7 @@ partial under-delivery rather than restating a hard metric.
 
 ---
 
-## 4. Outlier identification
+## 5. Outlier identification
 
 For sample inspection we focus on outliers. Outliers are defined relative to the study population,
 because expected values depend on the study's device, protocol and population — frequent basal rate
@@ -210,7 +231,7 @@ day.
 
 ---
 
-## 5. What happens to a finding
+## 6. Case handling
 
 Every inspected case is recorded with three independent pieces of information.
 
@@ -254,86 +275,31 @@ the source the reporting tables are aggregated from.
 
 ---
 
-## 6. First pass — what the screen found
+## 7. Reporting
 
-The engine and checks A–C ran over all nine datasets: **510,672 patient-days**, 2,572 patients. These
-are raw hits, not adjudicated cases — the point is that the screen is discriminating, and that its
-first output is already a work list rather than a green light.
+For every study the screen produces the fitted population and the outlier set for each metric
+together with their sizes, the cases selected for inspection — each with its patient, the metric that
+selected it and, where the metric carries one, the date — and the case log once they have been
+inspected.
 
-| Check | Count | Finding |
-|---|---|---|
-| CF-1 | 1,628 | patient-days in **T1DEXI / T1DEXIP** carry CGM values of exactly **39 or 401** — a different out-of-range sentinel convention from the seven studies clamped to [40, 400]. A conformance break against our own documented CGM model. |
-| CF-4 | 578 | patient-days with a basal rate above **35 U/h** (Loop 265, IOBP2 208, T1DEXI 103, T1DEXIP 2). The largest is **11,160 U/h** in T1DEXI — a unit or magic-number problem, not a therapy. |
-| CP-3 | 15.8 % | of **Loop** CGM-days carry **no insulin data at all** — no bolus, no basal. Also T1DEXI 6.7 %, T1DEXIP 4.0 %, ReplaceBG 2.0 %. Exactly the silent gap that must not reach a simulator undeclared. |
-| CP-5 | −154 d | median offset between the start of the **DCLP5** basal stream and its CGM stream; 88 of 100 patients are misaligned by more than a week, up to 331 days. Pump history predating the CGM record. |
-| CP-4 | 13 / 99 | **DCLP3** has 13 of 125 patients with no CGM whatsoever; **T1DEXI** has 99 of 497 patients with no bolus data and T1DEXIP 46 of 247. |
-| PL-1 | 1.33 % | of **DCLP5** patient-days reconstruct to a TDD of exactly zero while data is present — the zero-TDD case, now counted rather than suspected. |
-| PL-4 | 7,400 | **Flair** patient-days whose basal dose is carried by a single segment longer than 24 h (Loop 4,425). The terminal-record ambiguity described in §3.4 of the paper, quantified for the first time. |
-| CF-3/5 | 14 | **Loop** patient-days above the 30 U bolus envelope (max 46 U) and 11 with an extended-bolus duration beyond 8 h. Small enough to adjudicate individually — the pen-priming candidates. |
+The figures are the same comparisons as in face validation, now with the population fit drawn in and
+the outliers marked: metric distributions per study, pairs of metrics that belong together shown
+jointly, stream availability per patient-day, and the inspected cases as annotated patient traces. A
+metric × study heatmap of outlier counts summarises where the work sits.
 
-One check needs recalibrating before it is useful: PL-6 as written flags a mean of 37 duplicate
-boluses per day in Flair, because AID micro-boluses legitimately repeat identical doses within
-minutes. The ≥ 0.5 U floor in T1 is the fix — a good illustration of why the boundaries get set
-against the data rather than in advance.
-
-### Stream availability by study
-
-Fraction of each study's patient-days carrying each combination of streams. Composition, not just
-coverage — a study that is 99 % "CGM only" is not 99 % complete.
-
-| Study | all three | CGM + partial insulin | CGM only | insulin only | patient-days |
-|---|---|---|---|---|---|
-| DCLP3 | 86.5 % | 0.2 % | 0.1 % | 13.3 % | 23,559 |
-| DCLP5 | 96.9 % | 0.0 % | 0.0 % | 3.1 % | 20,692 |
-| Flair | 77.9 % | 13.0 % | 0.2 % | 8.9 % | 24,352 |
-| IOBP2 | 99.1 % | 0.1 % | 0.0 % | 0.8 % | 30,504 |
-| Loop | 79.2 % | 1.9 % | 15.2 % | 3.7 % | 325,171 |
-| PEDAP | 99.6 % | 0.2 % | 0.0 % | 0.2 % | 23,814 |
-| ReplaceBG | 92.4 % | 1.7 % | 1.9 % | 4.0 % | 46,390 |
-| T1DEXI | 76.2 % | 16.1 % | 6.6 % | 1.1 % | 13,675 |
-| T1DEXIP | 79.9 % | 15.1 % | 4.0 % | 1.0 % | 2,515 |
-
-![F1 — Stream availability per patient-day](assets/F1_coverage.png)
-
-**F1 — Stream availability per patient-day.** One row per patient, one column per day since that
-patient's first record, sorted by record length. This single figure carries most of the completeness
-argument: DCLP3's and Flair's insulin-only run-in periods, DCLP5's pump history preceding the CGM
-record, Loop's CGM-only stripes, T1DEXI's patients without bolus data, and IOBP2's clean protocol
-boundary at day 95 are all visible without a table.
+Outlier count and inspected count are always reported together, so that sampling intensity is visible
+rather than implied.
 
 ---
 
-## 7. What goes in the paper
+## 8. Phases
 
-### T2 — Figure and table set for the V&V section
+| Phase | Work |
+|---|---|
+| 1 · Implement | metric computation over all nine datasets, reproducible and re-runnable |
+| 2 · Screen | population fits per study, outlier sets, selection of cases for inspection |
+| 3 · Inspect | work through the selected cases and fill the case log |
+| 4 · Resolve | corrections into the parsers, re-run, compare against the previous run |
+| 5 · Report | figures, tables and the write-up |
 
-| ID | What | Which claim it carries | Status |
-|---|---|---|---|
-| F1 | Stream-availability matrix, 9 panels | Completeness: gaps, overlaps and stream composition are known and bounded | DONE |
-| F2 | Check × study heatmap: % of patient-days flagged, hard vs soft | The screen ran on everything; nothing was cherry-picked | open |
-| F3 | TDD panel: per-study distribution, basal/bolus split, reported-TDD anchor | Insulin reconstruction is the right magnitude and composition | open |
-| F4 | Circadian profile: mean CGM and insulin by time of day, per study | Local-time reconstruction is correct; physiology behaves as expected | open |
-| F5 | Two or three adjudicated cases as annotated patient-day traces | Flags were actually inspected, and defect was separated from phenomenon | open |
-| T1 | Metric set (§3 of this document) | Every check has a boundary, a type and an action | DONE |
-| T2 | Results per check per study: boundary, N selected, N inspected, disposition | OHDSI DQD-style reporting, extended with hard/soft | open |
-| T3 | Disposition log | The audit trail under the closing claim | open |
-
----
-
-## 8. Plan
-
-| Day | Focus | Items |
-|---|---|---|
-| 1 — done | Engine | Daily metric table over all nine studies · F1 stream-availability matrix · first-pass hit counts (§8) |
-| 2 | Checks & figures | Bounds list and evaluation · calibrate soft boundaries against the observed tails · F2, F3, F4 |
-| 3 | Adjudication | Challenge set: all hard hits, top-N per soft rule · patient-day traces · fill T2 and the T3 disposition log; F5 |
-| 4 | Write-up | V&V section against the 27 Jul outline's structure · limitations: the O-class cases, named with bounds · rerun everything once; report the before/after delta |
-
-If a day is lost, Day 3 shrinks, not Day 2. A screen that ran everywhere with a dozen adjudicated
-cases is a complete argument; a screen with fifty cases and no coverage is not.
-
----
-
-*Structure follows the V&V section outline of 27 July 2026 (§0.2 posture, §V&V.4 decision boundaries,
-tier T2) and the Kahn conformance / completeness / plausibility taxonomy, reported in the Book of
-OHDSI Ch. 15 table format.*
+Phases 3–5 repeat until the stop criterion is met.
