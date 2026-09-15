@@ -255,25 +255,45 @@ day.
 
 ## 6. What happens to a finding
 
-Every case that enters the challenge set leaves it with one of four labels. The distribution of
-labels is the result of the whole exercise — and the reason the exercise is worth doing is that only
-one of the four is a defect.
+Every inspected case is recorded with three independent pieces of information.
 
-| Class | Meaning |
-|---|---|
-| **P — Physiology** | Real and explainable — pregnancy, honeymoon phase, illness, a genuine regimen change. Retained unchanged; the case is written up as evidence the screen distinguishes signal from fault. |
-| **A — Source artifact** | Real in the study record but not in the patient — pen priming logged as a dose, a device export duplicated upstream, a sensor sentinel value. Retained and documented; optionally annotated with a quality flag. This is the class AIDIF *wants* to keep. |
-| **D — Babelbetes defect** | The reconstruction was wrong. Fixed in the parser, unit test added, pipeline rerun, and the before/after delta on the affected aggregates reported. These are the cases that carry the credibility of the whole section. |
-| **O — Open** | Could not be resolved with the information available. Named explicitly in the limitations subsection with its bound — never left silent. |
+**1 — Is it faithful to the source?**
+Whether the output correctly reflects the source record under the documented reconstruction rules.
+*Yes · No · Unclear.* A *no* is a Babelbetes defect. *Unclear* covers a source that is ambiguous,
+where the reconstruction rests on a documented assumption.
 
-### The log
+**2 — Is it explainable?**
+The cause in plain words: physiology (pregnancy, illness, regimen change), priming dose, MDI therapy,
+duplicated export, missing suspend, temp-basal conversion, import gap — or *none found*.
 
-One table, one row per case:
-`case_id · study · patient · check_id · value · boundary · figure · cause · class (P/A/D/O) · action · resolved`.
+**3 — Is it an error, and does it need a change?**
+An error means the output states something that did not happen. The decision follows:
 
-It is **T3** of the paper and the audit trail underneath the closing claim. Roughly one paragraph of
-writing per case, and a dozen or two worked cases is plenty — the argument is made by the systematic
-coverage, not by the case count.
+- **Accept** — kept and documented
+- **Correct** — fixed in the parser
+- **Exclude** — removed from the output
+
+Every decision carries a written rationale.
+
+The three are independent, and that is the point: a value can be faithful to the source and still not
+represent what was delivered.
+
+| Faithful | Explanation | Error | Typical decision |
+|---|---|---|---|
+| yes | physiology | no | accept |
+| yes | MDI therapy | no | accept |
+| yes | priming dose | yes | accept or exclude |
+| yes | none found | unclear | accept, documented |
+| no | temp-basal conversion | yes | correct |
+| unclear | ambiguous source, documented assumption | unclear | accept, documented |
+
+Priming is the awkward case, and deliberately so. The dose really was delivered by the pump; it
+simply did not reach the patient. Whether that counts as an error depends on what the data is used
+for — a simulator arguably wants it, because real algorithms will meet it; a cohort analysis does
+not. The default is **Accept**; see Open items.
+
+All inspected cases are kept in a log, which remains as the report behind the closing claim and is
+the source the reporting tables are aggregated from.
 
 ---
 
