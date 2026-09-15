@@ -9,50 +9,7 @@ classified and resolved.
 
 ---
 
-## The decision
-
-**A single screening pass over the output, not a second research project.**
-
-Everything Babelbetes needs is computable from the standardized event streams alone. One engine
-reduces the store to a `(study, patient, day)` metric table; a short declarative bounds list turns
-each metric into a **hard** (fix-or-approve) or **soft** (investigate) flag; every flag that fires is
-adjudicated once and recorded with a cause and a disposition. Five figures and three tables come out
-of it.
-
-Nothing in this screen requires resampling, IOB/COB reconstruction, or any part of the AIDIF model.
-That is a scope boundary, not a shortcut — see §3.
-
----
-
-## 1. Where we stand
-
-Four approaches have been on the table. They are not competitors; they are the same argument at four
-levels of ambition, and each one contributed a piece we keep.
-
-- **The per-study analysis notebooks.** Face validation, already performed while building each
-  parser — daily traces inspected by eye, TDD compared against reported values, distributions
-  sanity-checked. This is the foundation. It exists. It only needs to be written down.
-- **The snapshot system** (`compute / snapshot / diff`, SPL Mar 2026). Its real contribution is
-  *regression control*: prove that a code change moved only what it was supposed to move. Keep it for
-  exactly that, not as the validation argument.
-- **The four activities in the paper draft** — range checks, correlation, outcome matching, sample
-  testing. Correct shape. What was missing were the decision boundaries and what happens after a
-  check fires.
-- **The V&V outline** (27 Jul 2026). This is the one to read again, because §0.2 already settles the
-  argument: the posture is *descriptive, face-validation-first, minimize net-new work*, tiered
-  **T1 already done · T2 cheap corroboration · T3 defer**. T2 is spelled out as "automated hard-bound
-  sanity checks + TDD reconciliation + determinism — run once over the Parquet outputs."
-
-> The heavy machinery — exhaustive unit-test batteries, formal challenge-set curation, matrix
-> profiles, IOB~EGV correlation structure — is already classified T3 in that document: "build only if
-> a reviewer asks — not required for the sufficiency argument."
-
-So the disagreement is smaller than it feels. What follows is T2, made concrete and made to produce
-figures.
-
----
-
-## 2. Scope and verification target
+## 1. Scope and verification target
 
 Babelbetes brings datasets from several high-quality clinical trials into a common schema. The source
 data is already of high quality and has been used in regulatory submissions; what has to be
@@ -83,33 +40,33 @@ established in four steps:
 4. **Output screening and sample inspection** — exhaustive metric computation over all patients,
    followed by targeted inspection of the extremes. This document.
 
+Steps 1–3 are already in place and documented in the repository — the per-dataset notebooks, the
+schema validation and unit tests, and the plots produced while building each parser. This document
+covers step 4.
+
 > Physiologically impossible value and structurally suspicious data in the Babelbetes output 
 > were systematically searched and inspected and if deemed to be erroneous either fixed or excluded.
 
 
 ---
 
-## 3. The engine
+## 2. Process
 
-Five stages, one direction, no loops. Stages 1–2 are automated and rerun in under a minute; stage 3
-is where the human time goes.
+1. **Compute** — every metric, for every patient, in every study.
+2. **Identify** — hard violations and soft outliers, per study.
+3. **Select** — the cases to inspect.
+4. **Inspect and record** — each case receives a source-fidelity judgement, an explanation and a
+   decision.
+5. **Resolve and repeat** — corrections go back into the parsers; the screen is re-run and compared
+   against the previous run.
 
-| Stage | What | How |
-|---|---|---|
-| 1 · reduce | Daily metric table | One row per study × patient × day, ~35 columns. 510,672 rows, 49 s, 37 MB. |
-| 2 · decide | Bounds → flags | A declarative list of `(metric, H/S, predicate, rule)`. Every check carries an action; no bare thresholds. |
-| 3 · adjudicate | Challenge set | All hard hits plus the top-N per soft rule. Each is drawn as a patient-day trace and given a cause. |
-| 4 · dispose | Disposition log | One row per case: cause, class, action, resolved. Defects go back into the parser; the rest are documented. |
-| 5 · report | Figures & tables | F1–F5 and T1–T3 regenerate from the same table after any fix, with a before/after delta. |
-
-Why one intermediate table matters: it is the artifact that makes the screen reproducible and cheap
-to rerun. Fix a parser, rerun the pipeline, rebuild the table, and every number, flag and figure in
-the paper updates — including the delta against the previous snapshot. That is where the existing
-snapshot/diff system plugs back in.
+Metrics are computed once and stored, so every figure and table regenerates after a correction. The
+comparison against the previous run is what shows that a fix moved what it was supposed to move, and
+nothing else.
 
 ---
 
-## 4. Metrics
+## 3. Metrics
 
 The metric set is motivated by the failure modes encountered while building the parsers. Those
 specific defects are documented and largely fixed; the metrics are not there to re-find them, but to
@@ -217,7 +174,7 @@ partial under-delivery rather than restating a hard metric.
 
 ---
 
-## 5. Outlier identification
+## 4. Outlier identification
 
 For sample inspection we focus on outliers. Outliers are defined relative to the study population,
 because expected values depend on the study's device, protocol and population — frequent basal rate
@@ -253,7 +210,7 @@ day.
 
 ---
 
-## 6. What happens to a finding
+## 5. What happens to a finding
 
 Every inspected case is recorded with three independent pieces of information.
 
@@ -297,7 +254,7 @@ the source the reporting tables are aggregated from.
 
 ---
 
-## 7. First pass — what the screen found
+## 6. First pass — what the screen found
 
 The engine and checks A–C ran over all nine datasets: **510,672 patient-days**, 2,572 patients. These
 are raw hits, not adjudicated cases — the point is that the screen is discriminating, and that its
@@ -346,7 +303,7 @@ boundary at day 95 are all visible without a table.
 
 ---
 
-## 8. What goes in the paper
+## 7. What goes in the paper
 
 ### T2 — Figure and table set for the V&V section
 
@@ -357,13 +314,13 @@ boundary at day 95 are all visible without a table.
 | F3 | TDD panel: per-study distribution, basal/bolus split, reported-TDD anchor | Insulin reconstruction is the right magnitude and composition | open |
 | F4 | Circadian profile: mean CGM and insulin by time of day, per study | Local-time reconstruction is correct; physiology behaves as expected | open |
 | F5 | Two or three adjudicated cases as annotated patient-day traces | Flags were actually inspected, and defect was separated from phenomenon | open |
-| T1 | Metric set (§4 of this document) | Every check has a boundary, a type and an action | DONE |
+| T1 | Metric set (§3 of this document) | Every check has a boundary, a type and an action | DONE |
 | T2 | Results per check per study: boundary, N selected, N inspected, disposition | OHDSI DQD-style reporting, extended with hard/soft | open |
 | T3 | Disposition log | The audit trail under the closing claim | open |
 
 ---
 
-## 9. Plan
+## 8. Plan
 
 | Day | Focus | Items |
 |---|---|---|
