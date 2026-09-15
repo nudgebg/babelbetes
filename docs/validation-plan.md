@@ -19,20 +19,17 @@ leaves considerable room for human error.
 
 Formal validation as described in V&V 40 for CM&S is specific to a context of use, and risk
 management depends on the context of use in mind. Babelbetes provides a standardized view of the data
-through transformation and will be used across many different contexts of use. Formal validation and
-risk management without a specific context of use therefore do not apply.
+through transformation and will be used across many different contexts of use, so formal validation
+and risk management do not apply here. What this document describes is consequently **verification,
+not validation**: validation asks whether the output is fit for an intended use, and with no context
+of use there is none to ask about. The question that remains — does the output state what actually
+happened? — is a verification question.
 
-What this document describes is consequently **verification, not validation**. Validation asks
-whether the output is fit for an intended use; with no context of use there is none to ask about. The
-question that remains — does the output state what actually happened? — is a verification question.
-
-Established data-quality frameworks define validation as comparison against an external gold
-standard — a reference assumed to be more accurate than the data at hand. Babelbetes starts from that
-reference: the datasets it transforms are regulatory-grade clinical trial data, the best source
-available in this field. What has to be established is therefore not whether the data is good, but
-whether the reconstruction of it is faithful. Validating a model against measured data is well
-established practice; the inverse is not, and the step is rarely described.
-
+Established data-quality frameworks define validation differently, as comparison against an external
+gold standard. Babelbetes starts from that reference: the datasets it transforms are regulatory-grade
+clinical trial data, the best source available in this field, so what has to be established is not
+whether the data is good but whether the reconstruction of it is faithful. Validating a model against
+measured data is well established practice; the inverse is not, and the step is rarely described.
 What is available, and what this plan uses, is verification: checking the reconstruction against the
 source, checking consistency against device specifications, and assessing plausibility with respect
 to physiology, population and study design. Some external anchors from published study results can
