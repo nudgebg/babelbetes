@@ -138,6 +138,9 @@ of them is zero.
 | Carb bounds | share of entries below 0 and above the physiologic maximum | % of entries (2 values) | implausible entries — e.g. a negative amount, or a single 3 000 g meal |
 | Overlapping boluses | share of boluses whose delivery interval extends past the start of the next | % of boluses | the same extended bolus written twice, once at start and once at completion |
 
+> **TBD** — the device and physiologic limits per study: CGM reporting range, bolus and basal
+> maxima, carb maximum.
+
 ### B · Data coverage
 
 Defined over the **mandatory streams** — CGM, bolus and basal. Carbs are reported as coverage only,
@@ -268,7 +271,10 @@ represent what was delivered.
 Priming is the awkward case, and deliberately so. The dose really was delivered by the pump; it
 simply did not reach the patient. Whether that counts as an error depends on what the data is used
 for — a simulator arguably wants it, because real algorithms will meet it; a cohort analysis does
-not. The default is **Accept**; see Open items.
+not. The default is **Accept**.
+
+> **TBD** — whether source-faithful artifacts such as priming doses count as errors depends on the
+> downstream use, and is to be decided per use case.
 
 All inspected cases are kept in a log, which remains as the report behind the closing claim and is
 the source the reporting tables are aggregated from.
