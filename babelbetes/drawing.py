@@ -10,7 +10,15 @@ import pandas as pd
 from babelbetes import pandas_helper
 from babelbetes.pandas_helper import get_hour_of_day
     
-colors = {'Bolus': 'red', 'Basal': 'blue', 'CGM': 'darkgray'}
+BLUE, RED, MUTED, GRID = '#2a78d6', '#e34948', '#8a8983', '#e6e5e1'
+
+colors = {'Bolus': RED, 'Basal': MUTED, 'CGM': BLUE}
+
+plt.rcParams.update({
+    'axes.spines.top': False, 'axes.spines.right': False, 'axes.edgecolor': GRID, 'grid.color': GRID,
+    'font.size': 10, 'axes.labelsize': 'small', 'axes.titlesize': 'medium', 'axes.titleweight': 'bold',
+    'xtick.labelsize': 'small', 'ytick.labelsize': 'small', 'legend.fontsize': 'small',
+})
 
 
 def default_figure(width=8,height=4):
@@ -49,6 +57,17 @@ def format_time_axis(ax, major_interval_days=1, minor_interval_hours=2,major_for
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, weight='bold', fontsize=8)
     plt.setp(ax.xaxis.get_minorticklabels(), rotation=45, fontsize=8)
 
+def format_dynamic_time_axis(ax):
+    """Format the x-axis so datetime ticks adapt to the zoom level, down to hours and minutes.
+
+    Args:
+        ax (matplotlib.axes.Axes): The axis to format.
+    """
+    locator = mdates.AutoDateLocator()
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+
+
 def parse_duration(duration_str):
     """
     Parses a duration string in the format "HH:MM:SS" and returns a timedelta object.
@@ -61,19 +80,23 @@ def parse_duration(duration_str):
     hours, minutes, seconds = map(int, duration_str.split(":"))
     return timedelta(hours=hours, minutes=minutes, seconds=seconds)
 
-def drawCGM(ax, datetimes, values, color=colors['CGM'], unit='mg/dL',target_range=True, **kwargs):
-    """Draws CGM (Continuous Glucose Monitoring) data on the given axes.
+def drawCGM(ax, datetimes, values, color=colors['CGM'], unit='mg/dL', target_range=False, **kwargs):
+    """Draws a CGM (Continuous Glucose Monitoring) trace on the given axes.
+
+    Samples are connected by a thin line, and the x-axis adapts to the zoom level.
 
     Args:
         ax (matplotlib.axes.Axes): The axes on which to draw the CGM data.
         datetimes (list of datetime): List of datetime objects representing the time points.
         values (list of float): List of glucose values corresponding to the datetime points.
         color (str, optional): Color for the CGM plot. Defaults to colors['CGM'].
-        **kwargs (dict): Additional keyword arguments to customize the plot.
+        unit (str, optional): Unit of `values`, 'mg/dL' or 'mmol/L'. Defaults to 'mg/dL'.
+        target_range (bool, optional): Shade the 70-180 mg/dL range. Defaults to False.
+        **kwargs (dict): Additional keyword arguments passed to `ax.plot`.
     """
-    defaults = {'color': color, 'label': 'CGM', 's': 10}
+    defaults = {'color': color, 'label': 'CGM', 'linewidth': 0.6, 'marker': '.', 'markersize': 1.5}
     defaults.update(kwargs)
-    
+
     if unit == 'mmol/L':
         values = values * 18.01559
     elif unit != 'mg/dL':
@@ -81,29 +104,43 @@ def drawCGM(ax, datetimes, values, color=colors['CGM'], unit='mg/dL',target_rang
     if target_range:
         ax.axhspan(70, 180, color='lightgreen', alpha=0.2)
 
-    ax.scatter(datetimes, values, **defaults)
-    ax.set_ylabel('Glucose (mg/dL)')
-    ax.legend()
+    ax.plot(datetimes, values, **defaults)
+    ax.set_ylabel('CGM [mg/dL]')
+    format_dynamic_time_axis(ax)
+
+def shade_gaps(ax, windows, color=RED, linestyle='-', alpha=0.2, **kwargs):
+    """Shades time windows on the given axes.
+
+    Args:
+        ax (matplotlib.axes.Axes): The axes on which to draw.
+        windows (iterable of tuple): (start, end) datetime pairs, one per window.
+        color (str, optional): Color of the windows. Defaults to RED.
+        linestyle (str, optional): Style of the window edges. Edges are only visible with a linewidth above 0.
+        alpha (float, optional): Opacity of the windows. Defaults to 0.2.
+        **kwargs (dict): Additional keyword arguments passed to `ax.axvspan`. The default linewidth is 0.
+    """
+    defaults = {'color': color, 'linestyle': linestyle, 'alpha': alpha, 'linewidth': 0}
+    defaults.update(kwargs)
+    for start, end in windows:
+        ax.axvspan(start, end, **defaults)
 
 def drawBasal(ax, datetimes, rates, color=colors['Basal'], **kwargs):
-    """Draws the basal rates on the given axes.
-    
+    """Draws the basal rates on the given axes as a thin line, each rate holding until the next event.
+
+    The last rate is not drawn because it has no end time.
+
     Args:
         ax (matplotlib.axes.Axes): The axes on which to draw the basal rates.
         datetimes (list of datetime): List of datetime objects representing the time points.
         rates (list of float): List of basal rates corresponding to the datetime points.
         color (str, optional): Color for the basal rates plot. Defaults to colors['Basal'].
-        **kwargs (dict): Additional keyword arguments to customize the plot.
+        **kwargs (dict): Additional keyword arguments passed to `ax.stairs`.
     """
-    defaults = {'color': color, 'fill': True, 'alpha': 0.5, 'edgecolor': 'blue', 'label': 'basal'}
+    defaults = {'color': color, 'linewidth': 0.6, 'fill': False, 'label': 'basal'}
     defaults.update(kwargs)
     ax.stairs(rates[:-1], datetimes, **defaults)
-
-    # add stems for the rates without marker (no label, the bars carry it)
-    defaults = {'markerfmt': ' ', 'basefmt':' '}
-    defaults.update(kwargs)
-    defaults.pop('label', None)
-    ax.stem(datetimes, rates, **defaults)
+    ax.set_ylabel('basal rate [U/h]')
+    format_dynamic_time_axis(ax)
 
 def drawBoluses(ax, datetimes, boluses, **kwargs):
     """ Draws insulin boluses events on a given matplotlib axis.

@@ -3,8 +3,7 @@
 *Verification plan for the Babelbetes standardized output.*
 *Draft for review, September 2026.*
 
-Exhaustive metric computation over all patients in all studies, followed by targeted inspection of
-the extremes. This document defines the metrics, how outliers are identified, and how findings are
+This document defines the metrics, how outliers are identified, and how findings are
 classified and resolved.
 
 ---
@@ -185,17 +184,16 @@ Daily totals are the substrate; every metric reports one value per patient.
 | Metric | Definition | Unit | Type | Examples |
 |---|---|---|---|---|
 | Zero-dose days | days with TDD < 1 U | count, and % of core days | hard | basal never imported, or a stream stopping mid-record |
-| TDD μ\* | robust geometric mean of daily totals | U/day | soft | a record shifted in level — e.g. a standard basal rate profile counted on top of Loop micro-bolusing, leaving a patient with an extremely high total for their study; or temp-basal percentages never applied |
-| TDD σ\* | robust geometric SD of daily totals | ratio, ≥ 1 | soft | widespread instability — e.g. a therapy change mid-study, or systematically incomplete days |
+| TDD μ\* | geometric mean of daily totals | U/day | soft | a record shifted in level — e.g. a standard basal rate profile counted on top of Loop micro-bolusing, leaving a patient with an extremely high total for their study; or temp-basal percentages never applied |
+| TDD σ\* | geometric SD of daily totals | ratio, ≥ 1 | soft | widespread instability — e.g. a therapy change mid-study, or systematically incomplete days |
 | TDD max multiple | highest daily total ÷ μ\*, with the date | ratio, ≥ 1 | soft | a single extreme day — e.g. a priming dose recorded as a 40 U bolus |
 | TDD min multiple | μ\* ÷ lowest daily total over days ≥ 1 U, with the date | ratio, ≥ 1 | soft | partial under-delivery — e.g. a day on which only half the basal was imported |
 | Basal share | basal dose ÷ TDD | ratio, 0–1 | soft | basal rates missing or incorrectly transformed — e.g. incorrectly derived from MDI injections, or double-counted during AutoMode. A share near zero is correct for MDI patients |
 | Duplicate count | near-identical doses ≥ 0.5 U within one minute | count, and % of boluses | soft | the same bolus recorded twice, with or without a rounding difference |
 | CGM rate of change | largest absolute change per minute between consecutive samples | mg/dL per minute | soft | discontinuities where segments with different time offsets were spliced — e.g. glucose jumping 120 mg/dL between two five-minute samples |
 
-μ\* and σ\* are estimated robustly, from the median and MAD of the log daily totals. This keeps them
-insensitive to single extreme days, so that σ\* responds to *widespread* deviation while the max and
-min multiples respond to *single* events — the two therefore carry different information.
+μ\* and σ\* are the plain geometric mean and SD of the daily totals. The max and
+min multiples respond to extreme events.
 
 The min multiple is computed only over days that pass the zero-dose check, so that it measures
 partial under-delivery rather than restating a hard metric.
@@ -217,9 +215,14 @@ metrics come in two kinds:
 | Span efficiency, core completeness, duplicate count, zero-dose days | a constant — 1 or 0 | a large distance from it |
 | TDD μ\*, TDD σ\*, min and max multiple, basal share, gap sizes, CGM rate of change | the study population | a large deviation from its center |
 
-Population parameters are estimated **robustly**, from the median and MAD. Classical estimates are
+Population parameters are estimated **robustly**, with the minimum covariance determinant (MCD), which
+estimates centre and covariance from the tightest core of the population. Classical estimates are
 pulled toward the extremes they are meant to find, so correcting those patients shifts the center and
 declares a new set of ordinary patients extreme — a cascade that never ends.
+
+Metrics that belong together — μ\* and σ\*, the min and max multiple — are fitted jointly, as a
+bivariate lognormal per study. The deviation of a patient is then its Mahalanobis distance from the
+centre, which also catches combinations that are unusual although neither value is extreme on its own.
 
 Two separate decisions then follow. An **outlier** is a surprising finding, for example more than
 three robust standard deviations from the population center; the size of that set is reported, not
@@ -260,22 +263,7 @@ An error means the output states something that did not happen. The decision fol
 
 Every decision carries a written rationale.
 
-The three are independent, and that is the point: a value can be faithful to the source and still not
-represent what was delivered.
-
-| Faithful | Explanation | Error | Typical decision |
-|---|---|---|---|
-| yes | physiology | no | accept |
-| yes | MDI therapy | no | accept |
-| yes | priming dose | yes | accept or exclude |
-| yes | none found | unclear | accept, documented |
-| no | temp-basal conversion | yes | correct |
-| unclear | ambiguous source, documented assumption | unclear | accept, documented |
-
-Priming is the awkward case, and deliberately so. The dose really was delivered by the pump; it
-simply did not reach the patient. Whether that counts as an error depends on what the data is used
-for — a simulator arguably wants it, because real algorithms will meet it; a cohort analysis does
-not. The default is **Accept**.
+A value can be faithful to the source and still not represent what was delivered. For example, priming doses are a difficult case. The dose really was delivered by the pump; it simply did not reach the patient. Whether that counts as an error depends on what the data is used for — a simulator arguably wants it, because real algorithms will meet it; a cohort analysis does not. The default is **Accept**.
 
 > **TBD** — whether source-faithful artifacts such as priming doses count as errors depends on the
 > downstream use, and is to be decided per use case.
@@ -323,7 +311,7 @@ mechanism. This is absolute: a hard case is an impossibility, and there is nothi
 
 **Soft cases at our discretion.** There is no threshold here, because there is always a most extreme
 patient. What is weighed is how many of the newly inspected cases turned out to require a fix. If
-that share is low enough to accept, the screen stops; if it is not, the corrections are made and the
+that share is deemed low enough to accept, the screen stops; if it is not, the corrections are made and the
 screen is repeated. The number is reported either way, so the judgement is visible rather than
 implied.
 

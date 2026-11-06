@@ -61,6 +61,7 @@ def load(
     data_types: list[str] | None = None,
     studies: list[str] | str | None = None,
     patients: list[str] | str | None = None,
+    categorical_keys: bool = False,
 ) -> dict[str, pd.DataFrame]:
     """Load data from the partitioned Parquet store.
 
@@ -81,6 +82,11 @@ def load(
         data_types:  Data types to load. Defaults to all four ('cgm', 'bolus', 'basal', 'age', 'carbs').
         studies:     Filter by study name(s). None loads all studies.
         patients:    Filter by patient ID(s). None loads all patients.
+        categorical_keys: Keep study_name and patient_id as the Categoricals pyarrow
+                     returns instead of casting them to str. Uses far less memory on large
+                     studies, but the categories include studies and patients that were
+                     filtered out (use observed=True in groupby), and patient_id categories
+                     may not be strings.
 
     Returns:
         Dict mapping data_type → DataFrame. Always returns a dict, even for a single data type.
@@ -97,8 +103,9 @@ def load(
     for dt in dts:
         df = pd.read_parquet(os.path.join(base_path, dt), filters=filters or None)
         # Partition columns are Categorical by default from pyarrow; cast to string to avoid use errors
-        for col in ("study_name", "patient_id"):
-            if col in df.columns:
-                df[col] = df[col].astype(str)
+        if not categorical_keys:
+            for col in ("study_name", "patient_id"):
+                if col in df.columns:
+                    df[col] = df[col].astype(str)
         result[dt] = df
     return result
