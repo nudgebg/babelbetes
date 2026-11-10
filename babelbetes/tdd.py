@@ -35,9 +35,18 @@ def daily_delivered_dose(rates: pd.Series) -> pd.Series:
 
     Returns
     -------
-    pd.Series
-        Index: date (one entry per calendar day with activity)
-        Values: delivered dose for that day (rate × hours)
+    pd.DataFrame
+        Index: date, one row for every calendar day from the first to the last
+        rate event.
+        Column ``basal``: delivered dose for that day (rate × hours).
+
+    Notes
+    -----
+    - A day without its own rate event is NaN, even if a rate from the
+      previous day kept running through it. Missing data therefore shows up
+      as NaN, never as 0.
+    - A dose of 0 only occurs when events with rate 0 (e.g. a pump suspend)
+      cover the whole day.
     """
     rates = rates.sort_index()
 
@@ -157,6 +166,11 @@ def calculate_daily_bolus_dose(df):
             - bolus (float): The amount of bolus dose.
     Returns:
         pandas.DataFrame: A DataFrame with the daily bolus dose for each patient, grouped by patient_id and date.
+
+    Notes:
+        Only days with at least one bolus event are returned; days without a
+        bolus are missing, not 0. A dose of 0 only occurs if boluses of 0 U
+        are recorded.
     """
     return df.groupby(df.datetime.dt.date).agg({'bolus': 'sum'}).rename_axis('date')
 
@@ -174,6 +188,15 @@ def calculate_tdd(df_bolus, df_basal):
         - basal_rate (float): The basal insulin rate event [U/hr].
     Returns:
         tdd (DataFrame): DataFrame containing both the bolus and basal tdd data.
+
+    Notes:
+        The outer merge leaves ``basal`` or ``bolus`` NaN on days where that
+        stream has no data (see `daily_delivered_dose` and
+        `calculate_daily_bolus_dose`). When summing both into a TDD, use
+        ``sum(min_count=1)`` so a day with neither stays NaN instead of 0.
+        A TDD of 0 therefore requires a whole day at basal rate 0 and either
+        no recorded bolus or only boluses of 0 U. Days with no data in either
+        stream are not in the result at all.
     """
     daily_basals = df_basal.groupby('patient_id', observed=True).apply(calculate_daily_basal_dose, include_groups=False)
     daily_bolus = df_bolus.groupby('patient_id', observed=True).apply(calculate_daily_bolus_dose, include_groups=False)
