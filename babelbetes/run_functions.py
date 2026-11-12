@@ -78,12 +78,44 @@ from babelbetes import data_store
 from datetime import datetime
 from tqdm import tqdm
 import argparse
+import importlib.metadata
+import json
+import subprocess
 from time import time
 
 logger = Logger.get_logger(__file__)
 
 def current_time():
   return datetime.now().strftime("%H:%M:%S")
+
+def write_manifest(out_path, study_name, data_types):
+  """Record which code produced the output of a study in <out_path>/manifest.json.
+
+  One entry per study and data type with the extraction time, the babelbetes version and
+  the git commit, so results computed on the output can be traced back to the code that
+  extracted it. dirty is True if the babelbetes package had uncommitted changes; commit
+  and dirty are None outside a git checkout.
+  """
+  def git(*args):
+    try:
+      return subprocess.run(['git', *args], cwd=os.path.dirname(os.path.abspath(__file__)),
+                            capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+      return None
+
+  try:
+    version = importlib.metadata.version('babelbetes')
+  except importlib.metadata.PackageNotFoundError:
+    version = None
+  commit = git('rev-parse', '--short', 'HEAD')
+  entry = dict(extracted_at=datetime.now().isoformat(timespec='seconds'), version=version,
+               commit=commit, dirty=bool(git('status', '--porcelain', '--', '.')) if commit else None)
+
+  path = os.path.join(out_path, 'manifest.json')
+  manifest = json.load(open(path)) if os.path.exists(path) else {}
+  manifest.update({f'{study_name}/{data_type}': entry for data_type in data_types})
+  with open(path, 'w') as f:
+    json.dump(manifest, f, indent=2, sort_keys=True)
 
 def main(load_subset=False, remove_repetitive=True, input_dir=None, output_dir=None, studies=None, data_types=None):
   """
@@ -174,6 +206,7 @@ def main(load_subset=False, remove_repetitive=True, input_dir=None, output_dir=N
       start_time = time()
       try:
          process_folder(study, out_path, progress, remove_repetitive=remove_repetitive, data_types=data_types)
+         write_manifest(out_path, study.study_name, data_types)
       except Exception as e:
           tqdm.write(f"[{current_time()}] Error processing {study.study_name}: {e}")
           logger.error(f"Error processing {study.study_name}: {e} \n" \
