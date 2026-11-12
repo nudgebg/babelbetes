@@ -10,7 +10,7 @@ import pandas as pd
 from babelbetes import pandas_helper
 from babelbetes.pandas_helper import get_hour_of_day
     
-BLUE, RED, MUTED, GRID = '#2a78d6', '#e34948', '#8a8983', '#e6e5e1'
+BLUE, RED, GREEN, MUTED, GRID = '#2a78d6', '#e34948', '#1baf7a', '#8a8983', '#e6e5e1'
 
 colors = {'Bolus': RED, 'Basal': MUTED, 'CGM': BLUE}
 
